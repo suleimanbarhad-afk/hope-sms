@@ -34,6 +34,9 @@ const run = async () => {
     Fee.deleteMany(),
     Timetable.deleteMany(),
     SystemSettings.deleteMany(),
+    FeeStructure.deleteMany(),
+    Payment.deleteMany(),
+    StudentFeeStatus.deleteMany(),
   ]);
 
   // ---- Departments ----
@@ -101,7 +104,7 @@ const run = async () => {
     students.push(s);
   }
 
-  // ---- Courses (no lecturer assigned yet — admin assigns later) ----
+  // ---- Courses ----
   const courseData = [
     ["CS101", "Introduction to Programming", 3, 0, 0, 1],
     ["CS201", "Data Structures", 3, 0, 0, 2],
@@ -130,7 +133,7 @@ const run = async () => {
     courses.push(c);
   }
 
-  // ---- Enrollments, Results (pending), Attendance, Fees ----
+  // ---- Enrollments, Results, Attendance, Fees ----
   const grading = [
     { min: 80, max: 100, grade: "A", point: 4.0 },
     { min: 75, max: 79, grade: "B+", point: 3.5 },
@@ -141,65 +144,65 @@ const run = async () => {
     { min: 0, max: 49, grade: "F", point: 0.0 },
   ];
 
+  // Build batched arrays for fast insert
+  const attendanceBatch = [];
+  const resultsBatch = [];
+  const feesBatch = [];
+  const enrollmentsBatch = [];
+
   for (const student of students) {
     const deptCourses = courses.filter(
       (c) => c.department.toString() === student.department.toString()
     );
 
     for (const course of deptCourses.slice(0, 3)) {
-      await Enrollment.create({
+      enrollmentsBatch.push({
         student: student._id,
         course: course._id,
         semester: course.semester,
         academicYear: "2024/2025",
       });
 
-      // Generate component marks
-      const assignmentMarks = Math.floor(Math.random() * 11);   // 0–10
+      const attendanceMarks = Math.floor(Math.random() * 11);   // 0–10
       const courseworkMarks = Math.floor(Math.random() * 11);   // 0–10
       const testMarks = Math.floor(Math.random() * 11);         // 0–10
       const examMarks = 30 + Math.floor(Math.random() * 41);    // 30–70
-      const totalMarks = assignmentMarks + courseworkMarks + testMarks + examMarks;
+      const totalMarks = attendanceMarks + courseworkMarks + testMarks + examMarks;
 
       const g = grading.find((x) => totalMarks >= x.min && totalMarks <= x.max);
 
-      await Result.create({
+      resultsBatch.push({
         student: student._id,
         course: course._id,
-        assignmentMarks,
+        attendanceMarks,
         courseworkMarks,
         testMarks,
         examMarks,
-        examLocked: true,   // seeded as locked since it's a full record
+        examLocked: true,
         totalMarks,
         grade: g.grade,
         gradePoint: g.point,
         semester: course.semester,
         academicYear: "2024/2025",
-        status: "pending",  // ⬅️ per your choice #3 — admin must approve
+        status: "pending",
         enteredBy: admin._id,
       });
 
-      // Attendance
+      // Attendance — 20 days per student
       for (let d = 0; d < 20; d++) {
         const date = new Date();
         date.setDate(date.getDate() - d);
         const r = Math.random();
         const status = r < 0.85 ? "present" : r < 0.95 ? "late" : "absent";
-        try {
-          await Attendance.create({
-            student: student._id,
-            course: course._id,
-            date,
-            status,
-          });
-        } catch (e) {
-          /* skip duplicates */
-        }
+        attendanceBatch.push({
+          student: student._id,
+          course: course._id,
+          date,
+          status,
+        });
       }
 
-      // Fees
-      await Fee.create({
+      feesBatch.push({
         student: student._id,
         academicYear: "2024/2025",
         semester: course.semester,
@@ -211,12 +214,38 @@ const run = async () => {
     }
   }
 
+  // Bulk insert everything (much faster than individual .create() calls)
+  console.log("📝 Inserting enrollments...");
+  if (enrollmentsBatch.length) {
+    await Enrollment.insertMany(enrollmentsBatch, { ordered: false });
+  }
+
+  console.log("📝 Inserting results...");
+  if (resultsBatch.length) {
+    await Result.insertMany(resultsBatch, { ordered: false });
+  }
+
+  console.log("📝 Inserting attendance...");
+  if (attendanceBatch.length) {
+    try {
+      await Attendance.insertMany(attendanceBatch, { ordered: false });
+    } catch (e) {
+      // Ignore duplicate key errors
+    }
+  }
+
+  console.log("📝 Inserting fees...");
+  if (feesBatch.length) {
+    await Fee.insertMany(feesBatch, { ordered: false });
+  }
+
   // ---- Timetable ----
   const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
   for (let i = 0; i < courses.length; i++) {
     await Timetable.create({
       course: courses[i]._id,
-      lecturer: "",                   // will be set when a lecturer is assigned
+      lecturer: null,
+      lecturerName: "",
       room: `Room ${100 + i}`,
       day: days[i % 5],
       startTime: `${8 + (i % 4)}:00`,
@@ -235,6 +264,7 @@ const run = async () => {
     { title: "Library Extended Hours", description: "The library will remain open until midnight during exam period.", author: admin._id, priority: "normal" },
     { title: "Fee Payment Deadline", description: "All outstanding fees must be paid before end of month to avoid penalties.", author: admin._id, priority: "urgent" },
   ]);
+
   // ---- System settings ----
   await SystemSettings.create({
     schoolName: "Hope Secondary School",
@@ -258,7 +288,6 @@ const run = async () => {
   });
 
   // ---- Default fee structures ($200 first sem, $180 second sem) ----
-  const FeeStructure = (await import("../models/FeeStructure.js")).default;
   const academicYear = "2024/2025";
   for (let year = 1; year <= 4; year++) {
     await FeeStructure.create({
@@ -278,6 +307,14 @@ const run = async () => {
       dueDate: new Date("2025-01-15"),
     });
   }
+
+  console.log("✅ Database seeded successfully!");
+  console.log("📌 Admin login: admin@example.com / Admin@123");
+  console.log("📌 Student login: suleiman.ahmed@student.edu / Student@123");
+  console.log("⚠️  CHANGE DEFAULT PASSWORDS BEFORE DEPLOYING TO PRODUCTION!");
+
+  await mongoose.connection.close();
+  process.exit(0);
 };
 
 run().catch((err) => {

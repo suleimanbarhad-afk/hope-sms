@@ -1,5 +1,6 @@
 import { Routes, Route, Navigate } from "react-router-dom";
 import Landing from "../pages/Landing";
+import Notifications from "../pages/Notifications";
 import Login from "../pages/auth/Login";
 import Register from "../pages/auth/Register";
 import ProtectedRoute from "../components/ProtectedRoute";
@@ -63,6 +64,7 @@ export default function AppRoutes() {
         <Route path="attendance" element={<StudentAttendance />} />
         <Route path="announcements" element={<StudentAnnouncements />} />
         <Route path="fees" element={<StudentFees />} />
+        <Route path="notifications" element={<Notifications />} />
       </Route>
 
       {/* Admin */}
@@ -88,6 +90,7 @@ export default function AppRoutes() {
         <Route path="result-approvals" element={<AdminResultApprovals />} />
         <Route path="announcements" element={<AdminAnnouncements />} />
         <Route path="profile" element={<AdminProfile />} />
+        <Route path="notifications" element={<Notifications />} />
       </Route>
 
       {/* Lecturer */}
@@ -106,6 +109,7 @@ export default function AppRoutes() {
         <Route path="courses" element={<LecturerCourses />} />
         <Route path="results" element={<LecturerResults />} />
         <Route path="students" element={<LecturerStudents />} />
+        <Route path="notifications" element={<Notifications />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />

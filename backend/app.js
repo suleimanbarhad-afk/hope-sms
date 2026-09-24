@@ -17,6 +17,7 @@ import attendanceRoutes from "./routes/attendanceRoutes.js";
 import announcementRoutes from "./routes/announcementRoutes.js";
 import feeRoutes from "./routes/feeRoutes.js";
 import enrollmentRoutes from "./routes/enrollmentRoutes.js";
+import notificationRoutes from "./routes/notificationRoutes.js";
 import dashboardRoutes from "./routes/dashboardRoutes.js";
 import { notFound, errorHandler } from "./middleware/errorMiddleware.js";
 
@@ -48,6 +49,7 @@ app.use("/api/attendance", attendanceRoutes);
 app.use("/api/announcements", announcementRoutes);
 app.use("/api/fees", feeRoutes);
 app.use("/api/enrollments", enrollmentRoutes);
+app.use("/api/notifications", notificationRoutes);
 app.use("/api/lecturer", lecturerRoutes);
 app.use("/api/fee-structures", feeStructureRoutes);
 app.use("/api/lecturers", lecturerRoutes);

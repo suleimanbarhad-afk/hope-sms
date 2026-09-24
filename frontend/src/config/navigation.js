@@ -21,12 +21,14 @@ export const adminNavigation = [
     section: "FINANCE",
     items: [
       { label: "Fees", to: "/admin/fees", icon: "DollarSign" },
+      { label: "Settings", to: "/admin/fee-settings", icon: "Settings" },
     ],
   },
   {
     section: "COMMUNICATION",
     items: [
       { label: "Announcements", to: "/admin/announcements", icon: "Megaphone" },
+      { label: "Notifications", to: "/admin/notifications", icon: "Bell" },
     ],
   },
   {
@@ -51,6 +53,12 @@ export const lecturerNavigation = [
       { label: "Attendance", to: "/lecturer/attendance", icon: "CalendarCheck" },
       { label: "Enter Results", to: "/lecturer/results", icon: "ClipboardCheck" },
       { label: "My Students", to: "/lecturer/students", icon: "Users" },
+    ],
+  },
+  {
+    section: "COMMUNICATION",
+    items: [
+      { label: "Notifications", to: "/lecturer/notifications", icon: "Bell" },
     ],
   },
   {
@@ -80,13 +88,13 @@ export const studentNavigation = [
     section: "COMMUNICATION",
     items: [
       { label: "Announcements", to: "/student/announcements", icon: "Megaphone" },
+      { label: "Notifications", to: "/student/notifications", icon: "Bell" },
     ],
   },
-    {
+  {
     section: "FINANCE",
     items: [
-      { label: "Fees", to: "/admin/fees", icon: "DollarSign" },
-      { label: "Settings", to: "/admin/fee-settings", icon: "Settings" },
+      { label: "My Fees", to: "/student/fees", icon: "DollarSign" },
     ],
   },
   {
