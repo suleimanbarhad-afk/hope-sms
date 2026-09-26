@@ -2,7 +2,9 @@ import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../services/api";
 import { useAuth } from "../context/AuthContext";
+import { getSocket } from "../services/socket";
 import useClickOutside from "../hooks/useClickOutside";
+import toast from "react-hot-toast";
 import {
   Bell, Check, Megaphone, GraduationCap, CreditCard,
   ClipboardList, AlertCircle, Bell as BellIcon,
@@ -37,9 +39,44 @@ export default function NotificationBell() {
 
   useEffect(() => {
     fetchUnread();
-    const interval = setInterval(fetchUnread, 30000);
-    return () => clearInterval(interval);
   }, []);
+
+  useEffect(() => {
+    const socket = getSocket();
+    if (!socket) return;
+
+    const onCount = (count) => setUnread(count);
+
+    const onNew = (notif) => {
+      setUnread((u) => u + 1);
+
+      toast(
+        (t) => (
+          <div
+            onClick={() => {
+              toast.dismiss(t.id);
+              if (notif.link) navigate(notif.link);
+            }}
+            className="cursor-pointer"
+          >
+            <p className="font-semibold text-sm">{notif.title}</p>
+            <p className="text-xs text-slate-600 mt-0.5">{notif.message}</p>
+          </div>
+        ),
+        { duration: 5000, icon: "🔔" }
+      );
+
+      setNotifications((prev) => [notif, ...prev].slice(0, 5));
+    };
+
+    socket.on("notifications:count", onCount);
+    socket.on("notification:new", onNew);
+
+    return () => {
+      socket.off("notifications:count", onCount);
+      socket.off("notification:new", onNew);
+    };
+  }, [navigate]);
 
   const openDropdown = async () => {
     setOpen(!open);
@@ -63,14 +100,12 @@ export default function NotificationBell() {
       setNotifications((prev) =>
         prev.map((n) => (n._id === id ? { ...n, read: true } : n))
       );
-      setUnread((u) => Math.max(0, u - 1));
     } catch (err) {}
   };
 
   const openNotification = (n) => {
     if (!n.read) {
       api.put(`/notifications/${n._id}/read`).catch(() => {});
-      setUnread((u) => Math.max(0, u - 1));
     }
     setOpen(false);
     if (n.link) navigate(n.link);
@@ -96,7 +131,7 @@ export default function NotificationBell() {
       >
         <Bell size={20} />
         {unread > 0 && (
-          <span className="absolute -top-0.5 -right-0.5 bg-red-500 text-white text-[10px] font-semibold px-1.5 py-0.5 rounded-full min-w-[18px] text-center">
+          <span className="absolute -top-0.5 -right-0.5 bg-red-500 text-white text-[10px] font-semibold px-1.5 py-0.5 rounded-full min-w-[18px] text-center animate-pulse">
             {unread > 9 ? "9+" : unread}
           </span>
         )}
@@ -113,7 +148,9 @@ export default function NotificationBell() {
 
           <div className="max-h-96 overflow-y-auto">
             {loading ? (
-              <div className="p-6 text-center text-sm text-slate-400">Loading...</div>
+              <div className="p-6 text-center text-sm text-slate-400">
+                Loading...
+              </div>
             ) : notifications.length === 0 ? (
               <div className="p-6 text-center text-sm text-slate-400">
                 No notifications yet
@@ -131,7 +168,9 @@ export default function NotificationBell() {
                   >
                     <div
                       className={`shrink-0 w-8 h-8 rounded-lg flex items-center justify-center ${
-                        !n.read ? "bg-blue-100 text-blue-600" : "bg-slate-100 text-slate-500"
+                        !n.read
+                          ? "bg-blue-100 text-blue-600"
+                          : "bg-slate-100 text-slate-500"
                       }`}
                     >
                       <Icon size={14} />
@@ -139,7 +178,9 @@ export default function NotificationBell() {
                     <div className="flex-1 min-w-0">
                       <p
                         className={`text-sm ${
-                          !n.read ? "font-semibold text-slate-800" : "text-slate-700"
+                          !n.read
+                            ? "font-semibold text-slate-800"
+                            : "text-slate-700"
                         }`}
                       >
                         {n.title}

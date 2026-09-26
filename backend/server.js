@@ -1,7 +1,7 @@
 import dotenv from "dotenv";
 dotenv.config();
 
-// ⬇️ Register ALL Mongoose models at startup so .populate() works everywhere
+// Register all Mongoose models at startup
 import "./models/Department.js";
 import "./models/Program.js";
 import "./models/Course.js";
@@ -19,13 +19,19 @@ import "./models/Payment.js";
 import "./models/Document.js";
 import "./models/SystemSettings.js";
 
+import http from "http";
 import app from "./app.js";
 import connectDB from "./config/db.js";
+import { initSocket } from "./config/socket.js";
 
 const PORT = process.env.PORT || 5000;
 
 connectDB().then(() => {
-  app.listen(PORT, () => {
+  const httpServer = http.createServer(app);
+  initSocket(httpServer);
+
+  httpServer.listen(PORT, () => {
     console.log(`🚀 Server running on http://localhost:${PORT}`);
+    console.log(`🔌 Socket.io ready`);
   });
 });

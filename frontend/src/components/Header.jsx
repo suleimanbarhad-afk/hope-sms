@@ -2,6 +2,7 @@ import { LogOut, Menu } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { useNavigate } from "react-router-dom";
 import NotificationBell from "./NotificationBell";
+import OnlineIndicator from "./OnlineIndicator";
 
 export default function Header({ onOpenMobileSidebar }) {
   const { user, logout } = useAuth();
@@ -33,6 +34,7 @@ export default function Header({ onOpenMobileSidebar }) {
         </div>
 
         <div className="flex items-center gap-3">
+          <OnlineIndicator />
           <NotificationBell />
 
           <div className="w-9 h-9 rounded-full bg-blue-600 text-white flex items-center justify-center font-semibold">

@@ -5,6 +5,8 @@ import Notification from "../models/Notification.js";
 import { calculateGrade, calculateTotal } from "../utils/gradeCalculator.js";
 import { sendEmail } from "../utils/emailService.js";
 import { resultPublishedEmail } from "../utils/emailTemplates.js";
+import { notifyUser } from "../utils/notificationHelper.js";
+import { emitToRole } from "../config/socket.js";
 
 const getGrading = async () => {
   const settings = await SystemSettings.findOne();
@@ -126,6 +128,9 @@ export const createResult = async (req, res, next) => {
       enteredBy: req.user._id,
     });
 
+    // Notify admins of new pending result (live)
+    emitToRole("admin", "results:pending-changed", { delta: 1 });
+
     res.status(201).json(result);
   } catch (err) { next(err); }
 };
@@ -186,7 +191,7 @@ export const updateResult = async (req, res, next) => {
 };
 
 // ============================================================
-// APPROVE — with email notification
+// APPROVE — with LIVE notification + email
 // ============================================================
 export const approveResult = async (req, res, next) => {
   try {
@@ -200,14 +205,17 @@ export const approveResult = async (req, res, next) => {
     result.rejectionReason = "";
     await result.save();
 
-    // In-app notification
-    await Notification.create({
+    // In-app notification — LIVE push
+    await notifyUser({
       recipient: result.student,
       title: "New result published",
       message: "A result has been approved and is now visible in your results page.",
       type: "result",
       link: "/student/results",
     });
+
+    // Live count update for admins
+    emitToRole("admin", "results:pending-changed", { delta: -1 });
 
     // Email notification (best-effort, non-blocking)
     try {
@@ -236,6 +244,9 @@ export const approveResult = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
+// ============================================================
+// REJECT — with LIVE notification
+// ============================================================
 export const rejectResult = async (req, res, next) => {
   try {
     const result = await Result.findById(req.params.id);
@@ -248,7 +259,7 @@ export const rejectResult = async (req, res, next) => {
     await result.save();
 
     if (result.enteredBy) {
-      await Notification.create({
+      await notifyUser({
         recipient: result.enteredBy,
         title: "Result rejected",
         message: `Your result entry was rejected: ${result.rejectionReason}`,
@@ -256,6 +267,9 @@ export const rejectResult = async (req, res, next) => {
         link: "/lecturer/results",
       });
     }
+
+    // Live count update for admins
+    emitToRole("admin", "results:pending-changed", { delta: -1 });
 
     res.json(result);
   } catch (err) { next(err); }
@@ -272,6 +286,10 @@ export const bulkAction = async (req, res, next) => {
       : { status: "rejected", approvedBy: req.user._id, approvedAt: new Date(), rejectionReason: reason || "Rejected by admin" };
 
     const r = await Result.updateMany({ _id: { $in: ids } }, update);
+
+    // Live count update for admins
+    emitToRole("admin", "results:pending-changed", { delta: -r.modifiedCount });
+
     res.json({ message: `${r.modifiedCount} results ${action}d`, count: r.modifiedCount });
   } catch (err) { next(err); }
 };

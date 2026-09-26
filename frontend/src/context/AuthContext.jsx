@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import api from "../services/api";
+import { connectSocket, disconnectSocket } from "../services/socket";
 
 const AuthContext = createContext();
 
@@ -12,6 +13,15 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     if (user) localStorage.setItem("sms_user", JSON.stringify(user));
     else localStorage.removeItem("sms_user");
+  }, [user]);
+
+  // Manage socket lifecycle
+  useEffect(() => {
+    if (user?.token) {
+      connectSocket();
+    } else {
+      disconnectSocket();
+    }
   }, [user]);
 
   const login = async (email, password) => {
@@ -36,10 +46,15 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const logout = () => setUser(null);
+  const logout = () => {
+    disconnectSocket();
+    setUser(null);
+  };
 
   return (
-    <AuthContext.Provider value={{ user, setUser, login, register, logout, loading }}>
+    <AuthContext.Provider
+      value={{ user, setUser, login, register, logout, loading }}
+    >
       {children}
     </AuthContext.Provider>
   );

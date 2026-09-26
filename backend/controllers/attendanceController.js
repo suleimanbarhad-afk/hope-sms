@@ -6,10 +6,11 @@ import Notification from "../models/Notification.js";
 import SystemSettings from "../models/SystemSettings.js";
 import User from "../models/User.js";
 import { calculateGrade, calculateTotal } from "../utils/gradeCalculator.js";
+import { notifyUser } from "../utils/notificationHelper.js";
+import { emitToRole } from "../config/socket.js";
 
 // ============================================================
 // LECTURER — Get enrolled students + today's marks for a course
-// GET /api/attendance/course/:courseId/today?date=YYYY-MM-DD
 // ============================================================
 export const getCourseAttendanceForDate = async (req, res, next) => {
   try {
@@ -19,7 +20,6 @@ export const getCourseAttendanceForDate = async (req, res, next) => {
     const course = await Course.findById(courseId);
     if (!course) return res.status(404).json({ message: "Course not found" });
 
-    // Lecturer ownership check
     if (
       req.user.role === "lecturer" &&
       (!course.lecturer || course.lecturer.toString() !== req.user._id.toString())
@@ -63,8 +63,6 @@ export const getCourseAttendanceForDate = async (req, res, next) => {
 
 // ============================================================
 // LECTURER/ADMIN — Save or update attendance for one date
-// POST /api/attendance/bulk
-// Body: { course, date, records: [{ student, status }] }
 // ============================================================
 export const bulkAttendance = async (req, res, next) => {
   try {
@@ -79,21 +77,18 @@ export const bulkAttendance = async (req, res, next) => {
     const courseDoc = await Course.findById(course);
     if (!courseDoc) return res.status(404).json({ message: "Course not found" });
 
-    // Attendance must be open
     if (!courseDoc.attendanceOpen) {
       return res
         .status(403)
         .json({ message: "Attendance entry is not open for this course" });
     }
 
-    // Approved attendance cannot be modified
     if (courseDoc.attendanceStatus === "approved") {
       return res
         .status(403)
         .json({ message: "Attendance is already approved and locked" });
     }
 
-    // Lecturer ownership check
     if (
       req.user.role === "lecturer" &&
       (!courseDoc.lecturer ||
@@ -133,8 +128,7 @@ export const bulkAttendance = async (req, res, next) => {
 };
 
 // ============================================================
-// LECTURER — Submit attendance to admin
-// POST /api/attendance/course/:courseId/submit
+// LECTURER — Submit attendance to admin — LIVE
 // ============================================================
 export const submitAttendance = async (req, res, next) => {
   try {
@@ -176,16 +170,20 @@ export const submitAttendance = async (req, res, next) => {
     course.attendanceSubmittedAt = new Date();
     await course.save();
 
-    // Notify admins
+    // Notify admins — LIVE
     const admins = await User.find({ role: "admin" }).select("_id");
-    const notifications = admins.map((a) => ({
-      recipient: a._id,
-      title: `Attendance submitted: ${course.code}`,
-      message: `${course.name} attendance has been submitted for approval. ${warning}`,
-      type: "general",
-      link: "/admin/attendance-approvals",
-    }));
-    if (notifications.length) await Notification.insertMany(notifications);
+    for (const a of admins) {
+      await notifyUser({
+        recipient: a._id,
+        title: `Attendance submitted: ${course.code}`,
+        message: `${course.name} attendance has been submitted for approval. ${warning}`,
+        type: "general",
+        link: "/admin/attendance-approvals",
+      });
+    }
+
+    // Live count change to admins
+    emitToRole("admin", "attendance:pending-changed", { delta: 1 });
 
     res.json({
       message: "Attendance submitted to admin",
@@ -198,9 +196,7 @@ export const submitAttendance = async (req, res, next) => {
 };
 
 // ============================================================
-// LECTURER/ADMIN — Attendance history (days marked) for a course
-// GET /api/attendance/course/:courseId/history
-// Returns: [{ date, present, late, absent }, ...] newest first
+// LECTURER/ADMIN — Attendance history
 // ============================================================
 export const getCourseHistory = async (req, res, next) => {
   try {
@@ -240,9 +236,7 @@ export const getCourseHistory = async (req, res, next) => {
 };
 
 // ============================================================
-// LECTURER/ADMIN — Per-student attendance summary for a course
-// GET /api/attendance/course/:courseId/students-summary
-// Returns: { totalDays, students: [...] }
+// LECTURER/ADMIN — Per-student attendance summary
 // ============================================================
 export const getCourseStudentsSummary = async (req, res, next) => {
   try {
@@ -267,14 +261,12 @@ export const getCourseStudentsSummary = async (req, res, next) => {
 
     const records = await Attendance.find({ course: courseId });
 
-    // Distinct days
     const daySet = new Set();
     records.forEach((r) =>
       daySet.add(new Date(r.date).toISOString().split("T")[0])
     );
     const totalDays = daySet.size;
 
-    // Group records by student
     const byStudent = {};
     records.forEach((r) => {
       const sid = r.student.toString();
@@ -320,7 +312,6 @@ export const getCourseStudentsSummary = async (req, res, next) => {
 
 // ============================================================
 // LECTURER/ADMIN — Full day-by-day record for one student
-// GET /api/attendance/course/:courseId/student/:studentId/detail
 // ============================================================
 export const getStudentDetail = async (req, res, next) => {
   try {
@@ -363,7 +354,6 @@ export const getStudentDetail = async (req, res, next) => {
 
 // ============================================================
 // ADMIN — List all submissions
-// GET /api/attendance/submissions
 // ============================================================
 export const listAttendanceSubmissions = async (req, res, next) => {
   try {
@@ -395,8 +385,7 @@ export const listAttendanceSubmissions = async (req, res, next) => {
 };
 
 // ============================================================
-// ADMIN — Preview attendance before approving
-// GET /api/attendance/course/:courseId/preview
+// ADMIN — Preview attendance
 // ============================================================
 export const previewAttendance = async (req, res, next) => {
   try {
@@ -457,8 +446,7 @@ export const previewAttendance = async (req, res, next) => {
 };
 
 // ============================================================
-// ADMIN — Approve attendance → compute attendanceMarks
-// PUT /api/attendance/course/:courseId/approve
+// ADMIN — Approve attendance → compute attendanceMarks — LIVE
 // ============================================================
 export const approveAttendance = async (req, res, next) => {
   try {
@@ -547,8 +535,9 @@ export const approveAttendance = async (req, res, next) => {
     course.attendanceRejectedReason = "";
     await course.save();
 
+    // Notify lecturer — LIVE
     if (course.lecturer) {
-      await Notification.create({
+      await notifyUser({
         recipient: course.lecturer,
         title: `Attendance approved: ${course.code}`,
         message: `Your attendance for ${course.code} has been approved. Marks have been recorded.`,
@@ -556,6 +545,9 @@ export const approveAttendance = async (req, res, next) => {
         link: "/lecturer/attendance",
       });
     }
+
+    // Live count change to admins
+    emitToRole("admin", "attendance:pending-changed", { delta: -1 });
 
     res.json({
       message: "Attendance approved",
@@ -568,8 +560,7 @@ export const approveAttendance = async (req, res, next) => {
 };
 
 // ============================================================
-// ADMIN — Reject attendance
-// PUT /api/attendance/course/:courseId/reject
+// ADMIN — Reject attendance — LIVE
 // ============================================================
 export const rejectAttendance = async (req, res, next) => {
   try {
@@ -589,8 +580,9 @@ export const rejectAttendance = async (req, res, next) => {
     course.attendanceRejectedReason = reason || "Rejected by admin";
     await course.save();
 
+    // Notify lecturer — LIVE
     if (course.lecturer) {
-      await Notification.create({
+      await notifyUser({
         recipient: course.lecturer,
         title: `Attendance rejected: ${course.code}`,
         message: `Your attendance for ${course.code} was rejected: ${course.attendanceRejectedReason}`,
@@ -598,6 +590,9 @@ export const rejectAttendance = async (req, res, next) => {
         link: "/lecturer/attendance",
       });
     }
+
+    // Live count change to admins
+    emitToRole("admin", "attendance:pending-changed", { delta: -1 });
 
     res.json({ message: "Attendance rejected" });
   } catch (err) {
@@ -607,7 +602,6 @@ export const rejectAttendance = async (req, res, next) => {
 
 // ============================================================
 // STUDENT — Own attendance summary
-// GET /api/attendance/my
 // ============================================================
 export const getMyAttendance = async (req, res, next) => {
   try {
@@ -653,7 +647,6 @@ export const getMyAttendance = async (req, res, next) => {
 
 // ============================================================
 // ADMIN (legacy) — All attendance records
-// GET /api/attendance
 // ============================================================
 export const getAttendance = async (req, res, next) => {
   try {

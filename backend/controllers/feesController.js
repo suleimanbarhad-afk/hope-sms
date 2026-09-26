@@ -6,6 +6,8 @@ import User from "../models/User.js";
 import Notification from "../models/Notification.js";
 import { sendEmail } from "../utils/emailService.js";
 import { paymentVerifiedEmail } from "../utils/emailTemplates.js";
+import { notifyUser } from "../utils/notificationHelper.js";
+import { emitToRole } from "../config/socket.js";
 
 // ============================================================
 // Helper — recompute a student's fee status for one semester
@@ -179,16 +181,20 @@ export const createMyPayment = async (req, res, next) => {
       student.semester || 1
     );
 
-    // Notify admins
+    // Notify admins — LIVE
     const admins = await User.find({ role: "admin" }).select("_id");
-    const notifs = admins.map((a) => ({
-      recipient: a._id,
-      title: `Payment awaiting verification`,
-      message: `${student.firstName} ${student.lastName} submitted a $${amount} payment (${reference}).`,
-      type: "fee",
-      link: "/admin/fees",
-    }));
-    if (notifs.length) await Notification.insertMany(notifs);
+    for (const a of admins) {
+      await notifyUser({
+        recipient: a._id,
+        title: `Payment awaiting verification`,
+        message: `${student.firstName} ${student.lastName} submitted a $${amount} payment (${reference}).`,
+        type: "fee",
+        link: "/admin/fees",
+      });
+    }
+
+    // Live count change to admins
+    emitToRole("admin", "fees:pending-changed", { delta: 1 });
 
     res.status(201).json(payment);
   } catch (err) {
@@ -246,7 +252,7 @@ export const listPayments = async (req, res, next) => {
 };
 
 // ============================================================
-// ADMIN — Approve a payment (with email)
+// ADMIN — Approve a payment — LIVE
 // PUT /api/fees/payments/:id/approve
 // ============================================================
 export const approvePayment = async (req, res, next) => {
@@ -270,14 +276,17 @@ export const approvePayment = async (req, res, next) => {
       payment.semester
     );
 
-    // In-app notification
-    await Notification.create({
+    // In-app notification — LIVE
+    await notifyUser({
       recipient: payment.student,
       title: "Payment verified",
       message: `Your payment of $${payment.amount} (${payment.reference}) has been approved.`,
       type: "fee",
       link: "/student/fees",
     });
+
+    // Live count change to admins
+    emitToRole("admin", "fees:pending-changed", { delta: -1 });
 
     // Send email (best-effort)
     try {
@@ -308,7 +317,7 @@ export const approvePayment = async (req, res, next) => {
 };
 
 // ============================================================
-// ADMIN — Reject a payment
+// ADMIN — Reject a payment — LIVE
 // PUT /api/fees/payments/:id/reject
 // ============================================================
 export const rejectPayment = async (req, res, next) => {
@@ -329,13 +338,17 @@ export const rejectPayment = async (req, res, next) => {
       payment.semester
     );
 
-    await Notification.create({
+    // In-app notification — LIVE
+    await notifyUser({
       recipient: payment.student,
       title: "Payment rejected",
       message: `Your payment of $${payment.amount} was rejected: ${payment.rejectionReason}`,
       type: "fee",
       link: "/student/fees",
     });
+
+    // Live count change to admins
+    emitToRole("admin", "fees:pending-changed", { delta: -1 });
 
     res.json(payment);
   } catch (err) {
@@ -344,7 +357,7 @@ export const rejectPayment = async (req, res, next) => {
 };
 
 // ============================================================
-// ADMIN — Record payment on behalf (with email)
+// ADMIN — Record payment on behalf — LIVE
 // POST /api/fees/payments/admin
 // ============================================================
 export const adminCreatePayment = async (req, res, next) => {
@@ -393,8 +406,8 @@ export const adminCreatePayment = async (req, res, next) => {
 
     await recomputeStudentFeeStatus(student, ay, y, s);
 
-    // In-app notification
-    await Notification.create({
+    // In-app notification — LIVE
+    await notifyUser({
       recipient: student,
       title: "Payment recorded by admin",
       message: `A payment of $${amount} was recorded for you by an administrator.`,

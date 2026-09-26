@@ -1,7 +1,8 @@
 import Notification from "../models/Notification.js";
+import { emitToUser } from "../config/socket.js";
 
 // ============================================================
-// GET /api/notifications — current user's notifications
+// GET /api/notifications
 // ============================================================
 export const getMyNotifications = async (req, res, next) => {
   try {
@@ -51,7 +52,16 @@ export const markAsRead = async (req, res, next) => {
       { read: true },
       { new: true }
     );
-    if (!notif) return res.status(404).json({ message: "Notification not found" });
+    if (!notif)
+      return res.status(404).json({ message: "Notification not found" });
+
+    // Live emit updated count
+    const count = await Notification.countDocuments({
+      recipient: req.user._id,
+      read: false,
+    });
+    emitToUser(req.user._id, "notifications:count", count);
+
     res.json(notif);
   } catch (err) {
     next(err);
@@ -67,6 +77,9 @@ export const markAllAsRead = async (req, res, next) => {
       { recipient: req.user._id, read: false },
       { read: true }
     );
+
+    emitToUser(req.user._id, "notifications:count", 0);
+
     res.json({
       message: `${result.modifiedCount} marked as read`,
       count: result.modifiedCount,
@@ -85,7 +98,15 @@ export const deleteNotification = async (req, res, next) => {
       _id: req.params.id,
       recipient: req.user._id,
     });
-    if (!notif) return res.status(404).json({ message: "Notification not found" });
+    if (!notif)
+      return res.status(404).json({ message: "Notification not found" });
+
+    const count = await Notification.countDocuments({
+      recipient: req.user._id,
+      read: false,
+    });
+    emitToUser(req.user._id, "notifications:count", count);
+
     res.json({ message: "Notification deleted" });
   } catch (err) {
     next(err);
@@ -93,12 +114,16 @@ export const deleteNotification = async (req, res, next) => {
 };
 
 // ============================================================
-// DELETE /api/notifications — clear all for current user
+// DELETE /api/notifications — clear all
 // ============================================================
 export const clearAll = async (req, res, next) => {
   try {
     const result = await Notification.deleteMany({ recipient: req.user._id });
-    res.json({ message: `${result.deletedCount} deleted`, count: result.deletedCount });
+    emitToUser(req.user._id, "notifications:count", 0);
+    res.json({
+      message: `${result.deletedCount} deleted`,
+      count: result.deletedCount,
+    });
   } catch (err) {
     next(err);
   }
