@@ -3,6 +3,8 @@ import Course from "../models/Course.js";
 import SystemSettings from "../models/SystemSettings.js";
 import Notification from "../models/Notification.js";
 import { calculateGrade, calculateTotal } from "../utils/gradeCalculator.js";
+import { sendEmail } from "../utils/emailService.js";
+import { resultPublishedEmail } from "../utils/emailTemplates.js";
 
 const getGrading = async () => {
   const settings = await SystemSettings.findOne();
@@ -74,8 +76,6 @@ export const getPendingResults = async (req, res, next) => {
 
 // ============================================================
 // CREATE — admin or lecturer
-// Attendance marks are NOT set here — they come from attendance approval.
-// examMarks can only be set if course.examOpen = true.
 // ============================================================
 export const createResult = async (req, res, next) => {
   try {
@@ -131,8 +131,7 @@ export const createResult = async (req, res, next) => {
 };
 
 // ============================================================
-// UPDATE — lecturer can edit coursework + test anytime; exam locked after set.
-// Attendance marks cannot be edited by lecturer (only admin approval sets it).
+// UPDATE
 // ============================================================
 export const updateResult = async (req, res, next) => {
   try {
@@ -146,15 +145,12 @@ export const updateResult = async (req, res, next) => {
       if (existing.status === "approved") {
         return res.status(403).json({ message: "Result is approved and locked" });
       }
-      // Exam lock after first entry
       if (req.body.examMarks !== undefined && existing.examLocked && req.body.examMarks !== existing.examMarks) {
         return res.status(403).json({ message: "Exam mark is locked" });
       }
-      // Exam gate
       if (req.body.examMarks !== undefined && req.body.examMarks !== 0 && !existing.course.examOpen) {
         return res.status(403).json({ message: "Exam entry is not open for this course" });
       }
-      // Lecturer cannot edit attendanceMarks
       if (req.body.attendanceMarks !== undefined && req.body.attendanceMarks !== existing.attendanceMarks) {
         return res.status(403).json({ message: "Attendance marks are locked to admin approval" });
       }
@@ -189,6 +185,9 @@ export const updateResult = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
+// ============================================================
+// APPROVE — with email notification
+// ============================================================
 export const approveResult = async (req, res, next) => {
   try {
     const result = await Result.findById(req.params.id);
@@ -201,6 +200,7 @@ export const approveResult = async (req, res, next) => {
     result.rejectionReason = "";
     await result.save();
 
+    // In-app notification
     await Notification.create({
       recipient: result.student,
       title: "New result published",
@@ -208,6 +208,29 @@ export const approveResult = async (req, res, next) => {
       type: "result",
       link: "/student/results",
     });
+
+    // Email notification (best-effort, non-blocking)
+    try {
+      const populated = await Result.findById(result._id)
+        .populate("student", "firstName email")
+        .populate("course", "code name");
+
+      if (populated?.student?.email) {
+        const tpl = resultPublishedEmail({
+          firstName: populated.student.firstName,
+          course: populated.course,
+          grade: result.grade,
+          totalMarks: result.totalMarks,
+        });
+        sendEmail({
+          to: populated.student.email,
+          subject: tpl.subject,
+          html: tpl.html,
+        }).catch(() => {});
+      }
+    } catch (e) {
+      // ignore email errors
+    }
 
     res.json(result);
   } catch (err) { next(err); }

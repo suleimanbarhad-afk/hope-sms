@@ -4,6 +4,8 @@ import FeeStructure from "../models/FeeStructure.js";
 import SystemSettings from "../models/SystemSettings.js";
 import User from "../models/User.js";
 import Notification from "../models/Notification.js";
+import { sendEmail } from "../utils/emailService.js";
+import { paymentVerifiedEmail } from "../utils/emailTemplates.js";
 
 // ============================================================
 // Helper — recompute a student's fee status for one semester
@@ -14,7 +16,6 @@ const recomputeStudentFeeStatus = async (
   year,
   semester
 ) => {
-  // Fee required
   const feeStructure = await FeeStructure.findOne({
     academicYear,
     year,
@@ -23,7 +24,6 @@ const recomputeStudentFeeStatus = async (
   });
   const requiredAmount = feeStructure?.amount || 0;
 
-  // All payments (approved + pending)
   const payments = await Payment.find({
     student: studentId,
     academicYear,
@@ -69,7 +69,7 @@ const recomputeStudentFeeStatus = async (
 };
 
 // ============================================================
-// STUDENT — Get own fee status (all semesters)
+// STUDENT — Get own fee status
 // GET /api/fees/my
 // ============================================================
 export const getMyFees = async (req, res, next) => {
@@ -79,11 +79,9 @@ export const getMyFees = async (req, res, next) => {
     const academicYear =
       settings?.academicYear || student.academicYear || "2024/2025";
 
-    // Current semester (based on student's year/semester)
     const currentYear = student.yearOfStudy || 1;
     const currentSemester = student.semester || 1;
 
-    // Recompute for current semester
     const current = await recomputeStudentFeeStatus(
       student._id,
       academicYear,
@@ -91,17 +89,14 @@ export const getMyFees = async (req, res, next) => {
       currentSemester
     );
 
-    // All payments for this student (with status)
     const payments = await Payment.find({ student: student._id }).sort({
       paymentDate: -1,
     });
 
-    // All fee statuses (for history)
     const allStatuses = await StudentFeeStatus.find({
       student: student._id,
     }).sort({ academicYear: -1, year: 1, semester: 1 });
 
-    // Fee structure lookup for current
     const feeStructure = await FeeStructure.findOne({
       academicYear,
       year: currentYear,
@@ -144,7 +139,6 @@ export const getMyFees = async (req, res, next) => {
 // ============================================================
 // STUDENT — Record a new payment
 // POST /api/fees/my/payment
-// Body: { amount, reference, paymentDate, method, notes, receiptImage }
 // ============================================================
 export const createMyPayment = async (req, res, next) => {
   try {
@@ -178,7 +172,6 @@ export const createMyPayment = async (req, res, next) => {
       enteredBy: student._id,
     });
 
-    // Update cached status (pending amount)
     await recomputeStudentFeeStatus(
       student._id,
       academicYear,
@@ -204,8 +197,8 @@ export const createMyPayment = async (req, res, next) => {
 };
 
 // ============================================================
-// ADMIN — List all payments with filters
-// GET /api/fees/payments?status=pending&search=...
+// ADMIN — List all payments
+// GET /api/fees/payments
 // ============================================================
 export const listPayments = async (req, res, next) => {
   try {
@@ -253,7 +246,7 @@ export const listPayments = async (req, res, next) => {
 };
 
 // ============================================================
-// ADMIN — Approve a payment
+// ADMIN — Approve a payment (with email)
 // PUT /api/fees/payments/:id/approve
 // ============================================================
 export const approvePayment = async (req, res, next) => {
@@ -270,7 +263,6 @@ export const approvePayment = async (req, res, next) => {
     payment.rejectionReason = "";
     await payment.save();
 
-    // Recompute student's fee status
     await recomputeStudentFeeStatus(
       payment.student,
       payment.academicYear,
@@ -278,7 +270,7 @@ export const approvePayment = async (req, res, next) => {
       payment.semester
     );
 
-    // Notify student
+    // In-app notification
     await Notification.create({
       recipient: payment.student,
       title: "Payment verified",
@@ -286,6 +278,28 @@ export const approvePayment = async (req, res, next) => {
       type: "fee",
       link: "/student/fees",
     });
+
+    // Send email (best-effort)
+    try {
+      const populated = await Payment.findById(payment._id).populate(
+        "student",
+        "firstName email"
+      );
+      if (populated?.student?.email) {
+        const tpl = paymentVerifiedEmail({
+          firstName: populated.student.firstName,
+          amount: payment.amount,
+          reference: payment.reference,
+        });
+        sendEmail({
+          to: populated.student.email,
+          subject: tpl.subject,
+          html: tpl.html,
+        }).catch(() => {});
+      }
+    } catch (e) {
+      // ignore email errors
+    }
 
     res.json(payment);
   } catch (err) {
@@ -330,7 +344,7 @@ export const rejectPayment = async (req, res, next) => {
 };
 
 // ============================================================
-// ADMIN — Record payment on behalf (cash, etc.)
+// ADMIN — Record payment on behalf (with email)
 // POST /api/fees/payments/admin
 // ============================================================
 export const adminCreatePayment = async (req, res, next) => {
@@ -371,7 +385,7 @@ export const adminCreatePayment = async (req, res, next) => {
       paymentDate: paymentDate ? new Date(paymentDate) : new Date(),
       method: method || "cash",
       notes: notes || "",
-      status: "approved", // Admin entries are auto-approved
+      status: "approved",
       enteredBy: req.user._id,
       verifiedBy: req.user._id,
       verifiedAt: new Date(),
@@ -379,6 +393,7 @@ export const adminCreatePayment = async (req, res, next) => {
 
     await recomputeStudentFeeStatus(student, ay, y, s);
 
+    // In-app notification
     await Notification.create({
       recipient: student,
       title: "Payment recorded by admin",
@@ -387,6 +402,20 @@ export const adminCreatePayment = async (req, res, next) => {
       link: "/student/fees",
     });
 
+    // Send email (best-effort)
+    if (studentDoc.email) {
+      const tpl = paymentVerifiedEmail({
+        firstName: studentDoc.firstName,
+        amount: Number(amount),
+        reference,
+      });
+      sendEmail({
+        to: studentDoc.email,
+        subject: tpl.subject,
+        html: tpl.html,
+      }).catch(() => {});
+    }
+
     res.status(201).json(payment);
   } catch (err) {
     next(err);
@@ -394,23 +423,22 @@ export const adminCreatePayment = async (req, res, next) => {
 };
 
 // ============================================================
-// ADMIN — All student fee statuses (who owes, who paid)
-// GET /api/fees/statuses?filter=owes|paid|credit|all
+// ADMIN — All student fee statuses
+// GET /api/fees/statuses
 // ============================================================
 export const listStudentFeeStatuses = async (req, res, next) => {
   try {
     const settings = await SystemSettings.findOne();
-    const academicYear = req.query.academicYear || settings?.academicYear || "2024/2025";
+    const academicYear =
+      req.query.academicYear || settings?.academicYear || "2024/2025";
     const year = Number(req.query.year) || null;
     const semester = Number(req.query.semester) || null;
 
-    // Find all active students
     const students = await User.find({
       role: "student",
       status: "active",
     }).select("firstName lastName studentId email yearOfStudy semester");
 
-    // Recompute status for each (or use cached if same semester)
     const results = [];
     for (const s of students) {
       const y = year || s.yearOfStudy || 1;
@@ -436,22 +464,14 @@ export const listStudentFeeStatuses = async (req, res, next) => {
       });
     }
 
-    // Apply filter
     const filter = req.query.filter || "all";
     let filtered = results;
-    if (filter === "owes") {
-      filtered = results.filter((r) => r.balance < 0);
-    } else if (filter === "paid") {
-      filtered = results.filter((r) => r.status === "paid");
-    } else if (filter === "credit") {
-      filtered = results.filter((r) => r.status === "credit");
-    } else if (filter === "pending") {
-      filtered = results.filter((r) => r.pendingAmount > 0);
-    } else if (filter === "unpaid") {
-      filtered = results.filter((r) => r.status === "unpaid");
-    }
+    if (filter === "owes") filtered = results.filter((r) => r.balance < 0);
+    else if (filter === "paid") filtered = results.filter((r) => r.status === "paid");
+    else if (filter === "credit") filtered = results.filter((r) => r.status === "credit");
+    else if (filter === "pending") filtered = results.filter((r) => r.pendingAmount > 0);
+    else if (filter === "unpaid") filtered = results.filter((r) => r.status === "unpaid");
 
-    // Summary
     const summary = {
       total: results.length,
       owes: results.filter((r) => r.balance < 0).length,
@@ -460,10 +480,7 @@ export const listStudentFeeStatuses = async (req, res, next) => {
       unpaid: results.filter((r) => r.status === "unpaid").length,
       totalRequired: results.reduce((a, r) => a + r.requiredAmount, 0),
       totalCollected: results.reduce((a, r) => a + r.paidAmount, 0),
-      totalOutstanding: results.reduce(
-        (a, r) => a + Math.max(0, -r.balance),
-        0
-      ),
+      totalOutstanding: results.reduce((a, r) => a + Math.max(0, -r.balance), 0),
     };
 
     res.json({ data: filtered, summary });
@@ -473,13 +490,14 @@ export const listStudentFeeStatuses = async (req, res, next) => {
 };
 
 // ============================================================
-// ADMIN — Quick stats for the fees dashboard
+// ADMIN — Quick stats
 // GET /api/fees/stats
 // ============================================================
 export const getFeeStats = async (req, res, next) => {
   try {
     const settings = await SystemSettings.findOne();
-    const academicYear = req.query.academicYear || settings?.academicYear || "2024/2025";
+    const academicYear =
+      req.query.academicYear || settings?.academicYear || "2024/2025";
 
     const pendingCount = await Payment.countDocuments({ status: "pending" });
     const approvedAgg = await Payment.aggregate([
@@ -502,7 +520,7 @@ export const getFeeStats = async (req, res, next) => {
 };
 
 // ============================================================
-// SYSTEM SETTINGS — Get / Update bank + semester info
+// SYSTEM SETTINGS
 // ============================================================
 export const getSettings = async (req, res, next) => {
   try {
@@ -528,7 +546,6 @@ export const updateSettings = async (req, res, next) => {
       if (req.body[k] !== undefined) updates[k] = req.body[k];
     });
 
-    // Semester dates — special handling
     if (req.body.semesterStartDates) {
       updates.semesterStartDates = req.body.semesterStartDates;
     }

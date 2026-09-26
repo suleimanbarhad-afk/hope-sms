@@ -1,6 +1,8 @@
 import crypto from "crypto";
 import User from "../models/User.js";
 import generateToken from "../utils/generateToken.js";
+import { sendEmail } from "../utils/emailService.js";
+import { welcomeEmail, passwordResetEmail } from "../utils/emailTemplates.js";
 
 const userResponse = (user, token) => ({
   _id: user._id,
@@ -34,6 +36,7 @@ const userResponse = (user, token) => ({
 export const register = async (req, res, next) => {
   try {
     const { firstName, lastName, email, password, phone, gender, dateOfBirth } = req.body;
+
     const existing = await User.findOne({ email });
     if (existing) return res.status(400).json({ message: "Email already registered" });
 
@@ -51,6 +54,10 @@ export const register = async (req, res, next) => {
       studentId,
       role: "student",
     });
+
+    // Send welcome email (fire-and-forget — don't block the response)
+    const tpl = welcomeEmail({ firstName, email, password, role: "student" });
+    sendEmail({ to: email, subject: tpl.subject, html: tpl.html }).catch(() => {});
 
     res.status(201).json({
       _id: user._id,
@@ -126,6 +133,10 @@ export const registerLecturer = async (req, res, next) => {
       role: "lecturer",
     });
 
+    // Send welcome email
+    const tpl = welcomeEmail({ firstName, email, password, role: "lecturer" });
+    sendEmail({ to: email, subject: tpl.subject, html: tpl.html }).catch(() => {});
+
     res.status(201).json({
       _id: user._id,
       firstName: user.firstName,
@@ -141,7 +152,7 @@ export const registerLecturer = async (req, res, next) => {
 };
 
 // ============================================================
-// POST /api/auth/login — works for all roles
+// POST /api/auth/login
 // ============================================================
 export const login = async (req, res, next) => {
   try {
@@ -178,11 +189,35 @@ export const forgotPassword = async (req, res, next) => {
   try {
     const user = await User.findOne({ email: req.body.email });
     if (!user) return res.status(404).json({ message: "User not found" });
+
     const resetToken = crypto.randomBytes(20).toString("hex");
-    user.resetPasswordToken = crypto.createHash("sha256").update(resetToken).digest("hex");
+    user.resetPasswordToken = crypto
+      .createHash("sha256")
+      .update(resetToken)
+      .digest("hex");
     user.resetPasswordExpire = Date.now() + 10 * 60 * 1000;
     await user.save();
-    res.json({ message: "Reset token generated", resetToken });
+
+    // Build reset link
+    const clientUrl = process.env.CLIENT_URL || "http://localhost:5173";
+    const resetLink = `${clientUrl}/reset-password/${resetToken}`;
+
+    // Send email
+    const tpl = passwordResetEmail({
+      firstName: user.firstName,
+      resetLink,
+    });
+    sendEmail({
+      to: user.email,
+      subject: tpl.subject,
+      html: tpl.html,
+    }).catch(() => {});
+
+    // In dev, also return the token for quick testing
+    res.json({
+      message: "Reset link sent to your email",
+      ...(process.env.NODE_ENV === "development" && { resetToken, resetLink }),
+    });
   } catch (err) {
     next(err);
   }
@@ -193,16 +228,22 @@ export const forgotPassword = async (req, res, next) => {
 // ============================================================
 export const resetPassword = async (req, res, next) => {
   try {
-    const hashed = crypto.createHash("sha256").update(req.params.token).digest("hex");
+    const hashed = crypto
+      .createHash("sha256")
+      .update(req.params.token)
+      .digest("hex");
+
     const user = await User.findOne({
       resetPasswordToken: hashed,
       resetPasswordExpire: { $gt: Date.now() },
     });
     if (!user) return res.status(400).json({ message: "Invalid or expired token" });
+
     user.password = req.body.password;
     user.resetPasswordToken = undefined;
     user.resetPasswordExpire = undefined;
     await user.save();
+
     res.json({ message: "Password reset successful" });
   } catch (err) {
     next(err);
