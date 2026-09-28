@@ -20,7 +20,9 @@ import enrollmentRoutes from "./routes/enrollmentRoutes.js";
 import notificationRoutes from "./routes/notificationRoutes.js";
 import aiRoutes from "./routes/aiRoutes.js";
 import dashboardRoutes from "./routes/dashboardRoutes.js";
+import faceRoutes from "./routes/faceRoutes.js";
 import { notFound, errorHandler } from "./middleware/errorMiddleware.js";
+import analyticsRoutes from "./routes/analyticsRoutes.js";
 
 dotenv.config();
 
@@ -54,7 +56,9 @@ app.use("/api/notifications", notificationRoutes);
 app.use("/api/ai", aiRoutes);
 app.use("/api/lecturer", lecturerRoutes);
 app.use("/api/fee-structures", feeStructureRoutes);
+app.use("/api/analytics", analyticsRoutes);
 app.use("/api/lecturers", lecturerRoutes);
+app.use("/api/face", faceRoutes);
 app.use("/api", dashboardRoutes);
 
 

@@ -19,6 +19,7 @@ import "./models/Payment.js";
 import "./models/Document.js";
 import "./models/SystemSettings.js";
 import "./models/ChatMessage.js";
+import "./models/FaceData.js";
 
 import http from "http";
 import app from "./app.js";

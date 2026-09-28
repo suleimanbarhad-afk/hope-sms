@@ -15,6 +15,7 @@ export const adminNavigation = [
       { label: "Attendance Approvals", to: "/admin/attendance-approvals", icon: "CalendarCheck" },
       { label: "Results", to: "/admin/results", icon: "ClipboardCheck" },
       { label: "Result Approvals", to: "/admin/result-approvals", icon: "CheckCircle" },
+      { label: "Analytics", to: "/admin/analytics", icon: "BarChart3" },
     ],
   },
   {

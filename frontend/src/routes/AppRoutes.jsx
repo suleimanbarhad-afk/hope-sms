@@ -2,7 +2,6 @@ import { Routes, Route, Navigate } from "react-router-dom";
 import Landing from "../pages/Landing";
 import Notifications from "../pages/Notifications";
 import Login from "../pages/auth/Login";
-import Register from "../pages/auth/Register";
 import ForgotPassword from "../pages/auth/ForgotPassword";
 import ResetPassword from "../pages/auth/ResetPassword";
 import ProtectedRoute from "../components/ProtectedRoute";
@@ -16,6 +15,8 @@ import StudentProfile from "../pages/student/Profile";
 import StudentCourses from "../pages/student/Courses";
 import StudentResults from "../pages/student/Results";
 import StudentAttendance from "../pages/student/Attendance";
+import FaceEnroll from "../pages/student/FaceEnroll";
+import FaceAttendance from "../pages/student/FaceAttendance";
 import StudentAnnouncements from "../pages/student/Announcements";
 import StudentFees from "../pages/student/Fees";
 
@@ -31,6 +32,7 @@ import AdminCourses from "../pages/admin/Courses";
 import AdminResults from "../pages/admin/Results";
 import AdminAnnouncements from "../pages/admin/Announcements";
 import AdminProfile from "../pages/admin/Profile";
+import AdminAnalytics from "../pages/admin/Analytics";
 import AdminLecturers from "../pages/admin/Lecturers";
 import AdminResultApprovals from "../pages/admin/ResultApprovals";
 
@@ -47,7 +49,6 @@ export default function AppRoutes() {
     <Routes>
       <Route path="/" element={<Landing />} />
       <Route path="/login" element={<Login />} />
-      <Route path="/register" element={<Register />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/reset-password/:token" element={<ResetPassword />} />
 
@@ -66,6 +67,8 @@ export default function AppRoutes() {
         <Route path="courses" element={<StudentCourses />} />
         <Route path="results" element={<StudentResults />} />
         <Route path="attendance" element={<StudentAttendance />} />
+        <Route path="face-enroll" element={<FaceEnroll />} />
+        <Route path="face-attendance" element={<FaceAttendance />} />
         <Route path="announcements" element={<StudentAnnouncements />} />
         <Route path="fees" element={<StudentFees />} />
         <Route path="notifications" element={<Notifications />} />
@@ -82,16 +85,17 @@ export default function AppRoutes() {
       >
         <Route index element={<Navigate to="/admin/dashboard" replace />} />
         <Route path="dashboard" element={<AdminDashboard />} />
-        <Route path="attendance" element={<AdminAttendance />} />
         <Route path="students" element={<AdminStudents />} />
-        <Route path="attendance-approvals" element={<AdminAttendanceApprovals />} />
-        <Route path="fee-settings" element={<AdminFeeSettings />} />
-        <Route path="fees" element={<AdminFees />} />
         <Route path="lecturers" element={<AdminLecturers />} />
         <Route path="courses" element={<AdminCourses />} />
         <Route path="enrollments" element={<AdminEnrollments />} />
+        <Route path="attendance" element={<AdminAttendance />} />
+        <Route path="attendance-approvals" element={<AdminAttendanceApprovals />} />
         <Route path="results" element={<AdminResults />} />
         <Route path="result-approvals" element={<AdminResultApprovals />} />
+        <Route path="fees" element={<AdminFees />} />
+        <Route path="fee-settings" element={<AdminFeeSettings />} />
+        <Route path="analytics" element={<AdminAnalytics />} />
         <Route path="announcements" element={<AdminAnnouncements />} />
         <Route path="profile" element={<AdminProfile />} />
         <Route path="notifications" element={<Notifications />} />
@@ -108,11 +112,11 @@ export default function AppRoutes() {
       >
         <Route index element={<Navigate to="/lecturer/dashboard" replace />} />
         <Route path="dashboard" element={<LecturerDashboard />} />
-        <Route path="attendance" element={<LecturerAttendance />} />
-        <Route path="profile" element={<LecturerProfile />} />
         <Route path="courses" element={<LecturerCourses />} />
+        <Route path="attendance" element={<LecturerAttendance />} />
         <Route path="results" element={<LecturerResults />} />
         <Route path="students" element={<LecturerStudents />} />
+        <Route path="profile" element={<LecturerProfile />} />
         <Route path="notifications" element={<Notifications />} />
       </Route>
 

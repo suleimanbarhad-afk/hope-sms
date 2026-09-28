@@ -80,9 +80,10 @@ export default function AIChat() {
 
   return (
     <>
+      {/* Floating toggle button — moved up so it doesn't overlap page content */}
       <button
         onClick={() => setOpen(!open)}
-        className={`fixed bottom-6 right-6 w-14 h-14 rounded-full shadow-xl z-[150] flex items-center justify-center transition-all ${
+        className={`fixed bottom-20 right-6 w-14 h-14 rounded-full shadow-xl z-[150] flex items-center justify-center transition-all ${
           open
             ? "bg-slate-700 hover:bg-slate-800"
             : "bg-gradient-to-br from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
@@ -93,7 +94,7 @@ export default function AIChat() {
       </button>
 
       {open && (
-        <div className="fixed bottom-24 right-6 w-[400px] max-w-[calc(100vw-2rem)] h-[600px] max-h-[calc(100vh-8rem)] bg-white rounded-2xl shadow-2xl z-[150] flex flex-col overflow-hidden border border-slate-200">
+        <div className="fixed bottom-36 right-6 w-[400px] max-w-[calc(100vw-2rem)] h-[600px] max-h-[calc(100vh-8rem)] bg-white rounded-2xl shadow-2xl z-[150] flex flex-col overflow-hidden border border-slate-200">
           <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-4 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Sparkles size={18} />

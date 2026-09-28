@@ -1,14 +1,21 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import api from "../../services/api";
 import Loader from "../../components/Loader";
-import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from "recharts";
+import { ScanFace } from "lucide-react";
+import {
+  PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend,
+} from "recharts";
 
 export default function Attendance() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    api.get("/attendance/my").then((r) => setData(r.data)).finally(() => setLoading(false));
+    api
+      .get("/attendance/my")
+      .then((r) => setData(r.data))
+      .finally(() => setLoading(false));
   }, []);
 
   if (loading) return <Loader text="Loading attendance..." />;
@@ -28,6 +35,35 @@ export default function Attendance() {
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold">Attendance</h1>
+
+      {/* 🆕 Face Attendance quick access */}
+      <div className="bg-gradient-to-r from-blue-600 to-purple-600 rounded-xl p-5 text-white flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center shrink-0">
+            <ScanFace size={24} />
+          </div>
+          <div>
+            <p className="font-semibold">Face Attendance</p>
+            <p className="text-xs text-blue-100">
+              Mark attendance in 1 second with your camera
+            </p>
+          </div>
+        </div>
+        <div className="flex gap-2">
+          <Link
+            to="/student/face-enroll"
+            className="bg-white/20 hover:bg-white/30 text-white text-xs px-3 py-2 rounded-lg whitespace-nowrap"
+          >
+            Enroll Face
+          </Link>
+          <Link
+            to="/student/face-attendance"
+            className="bg-white text-blue-700 hover:bg-blue-50 text-xs px-3 py-2 rounded-lg font-medium whitespace-nowrap"
+          >
+            Mark Now →
+          </Link>
+        </div>
+      </div>
 
       <div className="grid md:grid-cols-3 gap-4">
         <div className="card text-center">
@@ -49,8 +85,16 @@ export default function Attendance() {
           <h3 className="font-semibold mb-3">Attendance Distribution</h3>
           <ResponsiveContainer width="100%" height={250}>
             <PieChart>
-              <Pie data={pieData} dataKey="value" nameKey="name" outerRadius={90} label>
-                {pieData.map((entry, i) => <Cell key={i} fill={entry.fill} />)}
+              <Pie
+                data={pieData}
+                dataKey="value"
+                nameKey="name"
+                outerRadius={90}
+                label
+              >
+                {pieData.map((entry, i) => (
+                  <Cell key={i} fill={entry.fill} />
+                ))}
               </Pie>
               <Tooltip />
               <Legend />
@@ -63,7 +107,9 @@ export default function Attendance() {
           {data.courses.map((c) => (
             <div key={c.course?._id}>
               <div className="flex justify-between text-sm mb-1">
-                <span className="font-medium">{c.course?.code} · {c.course?.name}</span>
+                <span className="font-medium">
+                  {c.course?.code} · {c.course?.name}
+                </span>
                 <span>{c.percentage}%</span>
               </div>
               <div className="w-full bg-slate-100 rounded-full h-2">
