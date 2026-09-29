@@ -23,6 +23,7 @@ import dashboardRoutes from "./routes/dashboardRoutes.js";
 import faceRoutes from "./routes/faceRoutes.js";
 import { notFound, errorHandler } from "./middleware/errorMiddleware.js";
 import analyticsRoutes from "./routes/analyticsRoutes.js";
+import videoRoutes from "./routes/videoRoutes.js";
 
 dotenv.config();
 
@@ -59,6 +60,7 @@ app.use("/api/fee-structures", feeStructureRoutes);
 app.use("/api/analytics", analyticsRoutes);
 app.use("/api/lecturers", lecturerRoutes);
 app.use("/api/face", faceRoutes);
+app.use("/api/video", videoRoutes);
 app.use("/api", dashboardRoutes);
 
 

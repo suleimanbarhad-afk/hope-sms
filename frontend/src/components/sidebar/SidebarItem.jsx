@@ -3,7 +3,7 @@ import {
   LayoutDashboard, Users, BookOpen, ClipboardCheck, CalendarCheck,
   Megaphone, CreditCard, User, Bell, Building2, GraduationCap,
   CalendarDays, ClipboardList, FileText, BarChart3, Settings,
-  DollarSign, UserPlus, CheckCircle,
+  DollarSign, UserPlus, CheckCircle, Video,
 } from "lucide-react";
 
 // Icon registry — new icons go here
@@ -11,7 +11,7 @@ const ICONS = {
   LayoutDashboard, Users, BookOpen, ClipboardCheck, CalendarCheck,
   Megaphone, CreditCard, User, Bell, Building2, GraduationCap,
   CalendarDays, ClipboardList, FileText, BarChart3, Settings,
-  DollarSign, UserPlus, CheckCircle,
+  DollarSign, UserPlus, CheckCircle, Video,
 };
 
 export default function SidebarItem({ item, isCollapsed, onNavigate }) {

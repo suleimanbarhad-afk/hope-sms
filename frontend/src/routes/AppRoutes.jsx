@@ -2,6 +2,8 @@ import { Routes, Route, Navigate } from "react-router-dom";
 import Landing from "../pages/Landing";
 import Notifications from "../pages/Notifications";
 import Login from "../pages/auth/Login";
+import LiveVideo from "../pages/LiveVideo";
+import LiveClasses from "../pages/student/LiveClasses";
 import ForgotPassword from "../pages/auth/ForgotPassword";
 import ResetPassword from "../pages/auth/ResetPassword";
 import ProtectedRoute from "../components/ProtectedRoute";
@@ -43,6 +45,7 @@ import LecturerProfile from "../pages/lecturer/Profile";
 import LecturerCourses from "../pages/lecturer/Courses";
 import LecturerResults from "../pages/lecturer/Results";
 import LecturerStudents from "../pages/lecturer/Students";
+import LecturerLiveClasses from "../pages/lecturer/LiveClasses";
 
 export default function AppRoutes() {
   return (
@@ -67,6 +70,8 @@ export default function AppRoutes() {
         <Route path="courses" element={<StudentCourses />} />
         <Route path="results" element={<StudentResults />} />
         <Route path="attendance" element={<StudentAttendance />} />
+        <Route path="live-classes" element={<LiveClasses />} />
+        <Route path="video/:roomId" element={<LiveVideo />} />
         <Route path="face-enroll" element={<FaceEnroll />} />
         <Route path="face-attendance" element={<FaceAttendance />} />
         <Route path="announcements" element={<StudentAnnouncements />} />
@@ -116,6 +121,8 @@ export default function AppRoutes() {
         <Route path="attendance" element={<LecturerAttendance />} />
         <Route path="results" element={<LecturerResults />} />
         <Route path="students" element={<LecturerStudents />} />
+        <Route path="live-classes" element={<LecturerLiveClasses />} />
+        <Route path="video/:roomId" element={<LiveVideo />} />
         <Route path="profile" element={<LecturerProfile />} />
         <Route path="notifications" element={<Notifications />} />
       </Route>

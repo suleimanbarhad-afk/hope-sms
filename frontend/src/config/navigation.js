@@ -54,6 +54,7 @@ export const lecturerNavigation = [
       { label: "Attendance", to: "/lecturer/attendance", icon: "CalendarCheck" },
       { label: "Enter Results", to: "/lecturer/results", icon: "ClipboardCheck" },
       { label: "My Students", to: "/lecturer/students", icon: "Users" },
+      { label: "Live Classes", to: "/lecturer/live-classes", icon: "Video" },
     ],
   },
   {
@@ -90,6 +91,7 @@ export const studentNavigation = [
     items: [
       { label: "Announcements", to: "/student/announcements", icon: "Megaphone" },
       { label: "Notifications", to: "/student/notifications", icon: "Bell" },
+      { label: "Live Classes", to: "/student/live-classes", icon: "Video" },
     ],
   },
   {

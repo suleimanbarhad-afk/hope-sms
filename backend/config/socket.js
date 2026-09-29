@@ -35,19 +35,87 @@ export const initSocket = (httpServer) => {
     socket.join(`user:${socket.userId}`);
     socket.join(`role:${socket.userRole}`);
 
-    // Broadcast to everyone
     io.emit("users:online", io.engine.clientsCount);
-
-    // Also send the current count directly to the newly connected socket
     socket.emit("users:online", io.engine.clientsCount);
 
-    // Handle manual requests (in case the initial event was missed)
     socket.on("users:online:get", () => {
       socket.emit("users:online", io.engine.clientsCount);
     });
 
+    // ============================================================
+    // WebRTC SIGNALING HANDLERS
+    // ============================================================
+
+    // Join a video room
+    socket.on("video:join", ({ roomId, userInfo }) => {
+      socket.join(`video:${roomId}`);
+      socket.videoRoom = roomId;
+
+      // Notify everyone else in the room
+      socket.to(`video:${roomId}`).emit("video:user-joined", {
+        socketId: socket.id,
+        userId: socket.userId,
+        ...userInfo,
+      });
+
+      // Send list of existing participants to the new user
+      const room = io.sockets.adapter.rooms.get(`video:${roomId}`);
+      const existingUsers = [];
+      if (room) {
+        room.forEach((id) => {
+          if (id !== socket.id) {
+            existingUsers.push({ socketId: id });
+          }
+        });
+      }
+      socket.emit("video:existing-users", existingUsers);
+
+      console.log(`📹 ${socket.userId} joined video room ${roomId}`);
+    });
+
+    // WebRTC offer (from new peer → existing peers)
+    socket.on("video:offer", ({ to, offer }) => {
+      io.to(to).emit("video:offer", {
+        from: socket.id,
+        offer,
+      });
+    });
+
+    // WebRTC answer (from existing peer → new peer)
+    socket.on("video:answer", ({ to, answer }) => {
+      io.to(to).emit("video:answer", {
+        from: socket.id,
+        answer,
+      });
+    });
+
+    // ICE candidate exchange
+    socket.on("video:ice-candidate", ({ to, candidate }) => {
+      io.to(to).emit("video:ice-candidate", {
+        from: socket.id,
+        candidate,
+      });
+    });
+
+    // Leave room
+    socket.on("video:leave", ({ roomId }) => {
+      socket.to(`video:${roomId}`).emit("video:user-left", {
+        socketId: socket.id,
+      });
+      socket.leave(`video:${roomId}`);
+      socket.videoRoom = null;
+    });
+
+    // Disconnect
     socket.on("disconnect", () => {
       console.log(`🔌 Socket disconnected: ${socket.userId}`);
+
+      if (socket.videoRoom) {
+        socket.to(`video:${socket.videoRoom}`).emit("video:user-left", {
+          socketId: socket.id,
+        });
+      }
+
       io.emit("users:online", io.engine.clientsCount);
     });
   });

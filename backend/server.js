@@ -20,6 +20,7 @@ import "./models/Document.js";
 import "./models/SystemSettings.js";
 import "./models/ChatMessage.js";
 import "./models/FaceData.js";
+import "./models/VideoRoom.js";
 
 import http from "http";
 import app from "./app.js";
